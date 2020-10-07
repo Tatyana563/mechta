@@ -34,7 +34,8 @@ import java.util.concurrent.Executors;
 public class SectionParser {
     private static final Logger LOG = LoggerFactory.getLogger(SectionParser.class);
 
-    private static final Set<String> SECTIONS = Set.of("Смартфоны и гаджеты", "Ноутбуки и компьютеры", "Тв, аудио, видео", "Техника для дома");
+    private static final Set<String> SECTIONS = Set.of("Смартфоны и гаджеты", "Ноутбуки и компьютеры", "Тв, аудио, видео",
+            "Техника для дома","Климат техника","Кухонная техника","Встраиваемая техника","Фото и видео техника","Активный отдых");
 
     private static final Set<String> GROUPS_EXCEPTIONS = Set.of("Купить дешевле");
     private static final String URL = "https://www.mechta.kz";
