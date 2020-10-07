@@ -34,8 +34,7 @@ import java.util.concurrent.Executors;
 public class SectionParser {
     private static final Logger LOG = LoggerFactory.getLogger(SectionParser.class);
 
-    private static final Set<String> SECTIONS = Set.of("Ноутбуки, компьютеры", "Комплектующие", "Оргтехника", "Смартфоны, планшеты", " Телевизоры, аудио, видео",
-            "Техника для дома", "Техника для кухни", "Фото и видео");
+    private static final Set<String> SECTIONS = Set.of("Смартфоны и гаджеты", "Ноутбуки и компьютеры", "Тв, аудио, видео", "Техника для дома");
 
     private static final Set<String> GROUPS_EXCEPTIONS = Set.of("Купить дешевле");
     private static final String URL = "https://www.mechta.kz";
@@ -64,10 +63,10 @@ public class SectionParser {
     @Scheduled(fixedDelay = ONE_WEEK_MS)
     @Transactional
     public void getSections() throws IOException {
-      
-        Document newsPage = Jsoup.connect(URL).get();
+
+        Document sectionPage = Jsoup.connect(URL).get();
         LOG.info("Получили главную страницу, ищем секции...");
-        Elements sectionElements = newsPage.select("#js-categories-menu>li");
+        Elements sectionElements = sectionPage.select(".aa_hm_items_main");
         for (Element sectionElement : sectionElements) {
             Element sectionElementLink = sectionElement.selectFirst(">a");
             String text = sectionElementLink.text();
@@ -77,82 +76,94 @@ public class SectionParser {
                 Section section = sectionRepository.findOneByUrl(sectionUrl)
                         .orElseGet(() -> sectionRepository.save(new Section(text, sectionUrl)));
                 LOG.info("Получили {}, ищем группы...", text);
-                Elements groupsAndCategories = sectionElement.select(".category-submenu li");
-                Element currentGroup = null;
-                List<Element> categories = new ArrayList<>();
-                for (int i = 0; i < groupsAndCategories.size(); i++) {
-                    Element element = groupsAndCategories.get(i);
-                    if (element.hasClass("parent-category")) {
-                        // element is group
-                        // 1. process previously found group and categories
-                        // 2. reset group and list
-                        processGroupWithCategories(section, currentGroup, categories);
-                        currentGroup = element;
-                        categories.clear();
-                     }
-                    else {
-                        // element is category
-                        categories.add(element);
+
+                Elements groupElements = sectionPage.select(".aa_hm_pod2");
+
+                for (Element groupElement : groupElements) {
+                    String groupLink = groupElement.selectFirst("a").absUrl("href");
+                    String groupText = groupElement.selectFirst("a").text();
+
+                        LOG.info("Получаем {}...", text);
+                        MainGroup group = mainGroupRepository.findOneByUrl(sectionUrl)
+                                .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupLink, section)));
+//                Element currentGroup = null;
+//                List<Element> categories = new ArrayList<>();
+//                for (int i = 0; i < groupsAndCategories.size(); i++) {
+//                    Element element = groupsAndCategories.get(i);
+//                    if (element.hasClass("parent-category")) {
+//                        // element is group
+//                        // 1. process previously found group and categories
+//                        // 2. reset group and list
+//                        processGroupWithCategories(section, currentGroup, categories);
+//                        currentGroup = element;
+//                        categories.clear();
+//                     }
+//                    else {
+//                        // element is category
+//                        categories.add(element);
+//                    }
+//                }
+//                processGroupWithCategories(section, currentGroup, categories);
                     }
                 }
-                processGroupWithCategories(section, currentGroup, categories);
             }
+
+//    private void processGroupWithCategories(Section section, Element currentGroup, List<Element> categories) {
+//        if (currentGroup == null) {
+//            return;
+//        }
+//        Element groupLink = currentGroup.selectFirst(">a");
+//        String groupUrl = groupLink.absUrl("href");
+//        String groupText = groupLink.text();
+//        LOG.info("Группа  {}", groupText);
+//        if (!GROUPS_EXCEPTIONS.contains(groupText)) {
+//            MainGroup group = mainGroupRepository.findOneByUrl(groupUrl)
+//                    .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupUrl, section)));
+//            if (categories.isEmpty()) {
+//                if (!categoryRepository.existsByUrl(groupUrl)) {
+//                    categoryRepository.save(new Category(groupText, groupUrl, group));
+//                }
+//            }
+//            else {
+//                for (Element categoryElement : categories) {
+//                    Element categoryLink = categoryElement.selectFirst(">a");
+//                    String categoryUrl = categoryLink.absUrl("href");
+//                    String categoryText = categoryLink.text();
+//                    LOG.info("\tКатегория  {}", categoryText);
+//                    if (!categoryRepository.existsByUrl(categoryUrl)) {
+//                        categoryRepository.save(new Category(categoryText, categoryUrl, group));
+//                    }
+//
+//                }
+//            }
+//        }
+//    }
+//
+//  //  @Scheduled(initialDelay = 1200, fixedDelay = ONE_WEEK_MS)
+//    @Transactional
+//    public void getAdditionalArticleInfo() throws InterruptedException {
+//        LOG.info("Получаем дополнитульную информацию о товарe...");
+//        ExecutorService executorService = Executors.newFixedThreadPool(threadPoolSize);
+//        int page = 0;
+//        List<Category> categories;
+//
+//        // 1. offset + limit
+//        // 2. page + pageSize
+//        //   offset = page * pageSize;  limit = pageSize;
+//        while (!(categories = categoryRepository.getChunk(PageRequest.of(page++, chunkSize))).isEmpty()) {
+//            LOG.info("Получили из базы {} категорий", categories.size());
+//            CountDownLatch latch = new CountDownLatch(categories.size());
+//            for (Category category : categories) {
+//                executorService.execute(new ItemsUpdateTask(itemRepository, category, latch));
+//            }
+//            LOG.info("Задачи запущены, ожидаем завершения выполнения...");
+//            latch.await();
+//            LOG.info("Задачи выполнены, следующая порция...");
+//        }
+//        executorService.shutdown();
+//    }
         }
     }
 
-    private void processGroupWithCategories(Section section, Element currentGroup, List<Element> categories) {
-        if (currentGroup == null) {
-            return;
-        }
-        Element groupLink = currentGroup.selectFirst(">a");
-        String groupUrl = groupLink.absUrl("href");
-        String groupText = groupLink.text();
-        LOG.info("Группа  {}", groupText);
-        if (!GROUPS_EXCEPTIONS.contains(groupText)) {
-            MainGroup group = mainGroupRepository.findOneByUrl(groupUrl)
-                    .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupUrl, section)));
-            if (categories.isEmpty()) {
-                if (!categoryRepository.existsByUrl(groupUrl)) {
-                    categoryRepository.save(new Category(groupText, groupUrl, group));
-                }
-            }
-            else {
-                for (Element categoryElement : categories) {
-                    Element categoryLink = categoryElement.selectFirst(">a");
-                    String categoryUrl = categoryLink.absUrl("href");
-                    String categoryText = categoryLink.text();
-                    LOG.info("\tКатегория  {}", categoryText);
-                    if (!categoryRepository.existsByUrl(categoryUrl)) {
-                        categoryRepository.save(new Category(categoryText, categoryUrl, group));
-                    }
 
-                }
-            }
-        }
-    }
-
-    @Scheduled(initialDelay = 1200, fixedDelay = ONE_WEEK_MS)
-    @Transactional
-    public void getAdditionalArticleInfo() throws InterruptedException {
-        LOG.info("Получаем дополнитульную информацию о товарe...");
-        ExecutorService executorService = Executors.newFixedThreadPool(threadPoolSize);
-        int page = 0;
-        List<Category> categories;
-
-        // 1. offset + limit
-        // 2. page + pageSize
-        //   offset = page * pageSize;  limit = pageSize;
-        while (!(categories = categoryRepository.getChunk(PageRequest.of(page++, chunkSize))).isEmpty()) {
-            LOG.info("Получили из базы {} категорий", categories.size());
-            CountDownLatch latch = new CountDownLatch(categories.size());
-            for (Category category : categories) {
-                executorService.execute(new ItemsUpdateTask(itemRepository, category, latch));
-            }
-            LOG.info("Задачи запущены, ожидаем завершения выполнения...");
-            latch.await();
-            LOG.info("Задачи выполнены, следующая порция...");
-        }
-        executorService.shutdown();
-    }
-}
 
