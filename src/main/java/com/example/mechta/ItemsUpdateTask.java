@@ -96,15 +96,15 @@ public class ItemsUpdateTask implements Runnable {
 
     private void parseItems(Document itemPage) {
 
-        Elements itemElements = itemPage.select(".catalog-list-item:not(.injectable-banner)");
+        Elements itemElements = itemPage.select(".aa_vert_cont jq_aa_vert_rec swiper-container swiper-container-horizontal");
         for (Element itemElement : itemElements) {
-            String itemPhoto = itemElement.selectFirst(".image img").absUrl("src");
-            Element itemLink = itemElement.selectFirst(".item-info>a");
-            String itemUrl = itemLink.absUrl("href");
-            String itemText = itemLink.text();
+            Element itemContainer = itemElement.selectFirst(".aa_st_descr iprel");
 
-            //TODO: use regex to find price without currency.
-            String itemPrice = itemElement.selectFirst(".price").text();
+            String itemUrl = itemElement.selectFirst(".aa_vert_name").attr("href");
+            String itemText = itemElement.selectFirst(".aa_vert_name").text();
+            String itemPrice = itemElement.selectFirst(".ifont120 icblack").text();
+
+
             String price = null;
             Matcher priceMatcher = PRICE_PATTERN.matcher(itemPrice);
             if (priceMatcher.find()) {
@@ -118,7 +118,7 @@ public class ItemsUpdateTask implements Runnable {
                 Item item = itemRepository.findOneByCode(itemCode).orElseGet(() -> new Item(itemCode));
 
                 item.setModel(itemText);
-                item.setImage(itemPhoto);
+            //    item.setImage(itemPhoto);
                 item.setDescription(itemDescription);
                 item.setPrice(Double.valueOf(price));
                 item.setUrl(itemUrl);

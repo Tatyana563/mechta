@@ -16,26 +16,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @Component
 public class SectionParser {
     private static final Logger LOG = LoggerFactory.getLogger(SectionParser.class);
 
     private static final Set<String> SECTIONS = Set.of("Смартфоны и гаджеты", "Ноутбуки и компьютеры", "Тв, аудио, видео",
-            "Техника для дома","Климат техника","Кухонная техника","Встраиваемая техника","Фото и видео техника","Активный отдых");
+            "Техника для дома", "Климат техника", "Кухонная техника", "Встраиваемая техника", "Фото и видео техника", "Активный отдых");
 
     private static final Set<String> GROUPS_EXCEPTIONS = Set.of("Купить дешевле");
     private static final String URL = "https://www.mechta.kz";
@@ -84,87 +77,26 @@ public class SectionParser {
                     String groupLink = groupElement.selectFirst("a").absUrl("href");
                     String groupText = groupElement.selectFirst("a").text();
 
+                    LOG.info("Получаем {}...", text);
+                    MainGroup group = mainGroupRepository.findOneByUrl(sectionUrl)
+                            .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupLink, section)));
+
+                    Elements categoryElements = sectionPage.select(".aa_hm_pod3");
+
+                    for (Element categoryElement : categoryElements) {
+                        String categoryLink = categoryElement.selectFirst("a").absUrl("href");
+                        String categoryText = categoryElement.selectFirst("a").text();
+
                         LOG.info("Получаем {}...", text);
-                        MainGroup group = mainGroupRepository.findOneByUrl(sectionUrl)
-                                .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupLink, section)));
-//                Element currentGroup = null;
-//                List<Element> categories = new ArrayList<>();
-//                for (int i = 0; i < groupsAndCategories.size(); i++) {
-//                    Element element = groupsAndCategories.get(i);
-//                    if (element.hasClass("parent-category")) {
-//                        // element is group
-//                        // 1. process previously found group and categories
-//                        // 2. reset group and list
-//                        processGroupWithCategories(section, currentGroup, categories);
-//                        currentGroup = element;
-//                        categories.clear();
-//                     }
-//                    else {
-//                        // element is category
-//                        categories.add(element);
-//                    }
-//                }
-//                processGroupWithCategories(section, currentGroup, categories);
+                        if (!categoryRepository.existsByUrl(categoryLink)) {
+                            categoryRepository.save(new Category(categoryText, categoryLink, group));
+                        }
+
                     }
                 }
             }
-
-//    private void processGroupWithCategories(Section section, Element currentGroup, List<Element> categories) {
-//        if (currentGroup == null) {
-//            return;
-//        }
-//        Element groupLink = currentGroup.selectFirst(">a");
-//        String groupUrl = groupLink.absUrl("href");
-//        String groupText = groupLink.text();
-//        LOG.info("Группа  {}", groupText);
-//        if (!GROUPS_EXCEPTIONS.contains(groupText)) {
-//            MainGroup group = mainGroupRepository.findOneByUrl(groupUrl)
-//                    .orElseGet(() -> mainGroupRepository.save(new MainGroup(groupText, groupUrl, section)));
-//            if (categories.isEmpty()) {
-//                if (!categoryRepository.existsByUrl(groupUrl)) {
-//                    categoryRepository.save(new Category(groupText, groupUrl, group));
-//                }
-//            }
-//            else {
-//                for (Element categoryElement : categories) {
-//                    Element categoryLink = categoryElement.selectFirst(">a");
-//                    String categoryUrl = categoryLink.absUrl("href");
-//                    String categoryText = categoryLink.text();
-//                    LOG.info("\tКатегория  {}", categoryText);
-//                    if (!categoryRepository.existsByUrl(categoryUrl)) {
-//                        categoryRepository.save(new Category(categoryText, categoryUrl, group));
-//                    }
-//
-//                }
-//            }
-//        }
-//    }
-//
-//  //  @Scheduled(initialDelay = 1200, fixedDelay = ONE_WEEK_MS)
-//    @Transactional
-//    public void getAdditionalArticleInfo() throws InterruptedException {
-//        LOG.info("Получаем дополнитульную информацию о товарe...");
-//        ExecutorService executorService = Executors.newFixedThreadPool(threadPoolSize);
-//        int page = 0;
-//        List<Category> categories;
-//
-//        // 1. offset + limit
-//        // 2. page + pageSize
-//        //   offset = page * pageSize;  limit = pageSize;
-//        while (!(categories = categoryRepository.getChunk(PageRequest.of(page++, chunkSize))).isEmpty()) {
-//            LOG.info("Получили из базы {} категорий", categories.size());
-//            CountDownLatch latch = new CountDownLatch(categories.size());
-//            for (Category category : categories) {
-//                executorService.execute(new ItemsUpdateTask(itemRepository, category, latch));
-//            }
-//            LOG.info("Задачи запущены, ожидаем завершения выполнения...");
-//            latch.await();
-//            LOG.info("Задачи выполнены, следующая порция...");
-//        }
-//        executorService.shutdown();
-//    }
         }
     }
-
+}
 
 
