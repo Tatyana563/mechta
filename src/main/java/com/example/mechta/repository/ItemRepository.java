@@ -13,7 +13,6 @@ import java.util.Optional;
 
 @Repository
 public interface ItemRepository extends JpaRepository<Item,Integer> {
-    boolean existsByCode(String code);
     Optional<Item> findOneByCode(String code);
 
     @Modifying

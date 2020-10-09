@@ -16,12 +16,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Component
 public class SectionParser {
@@ -97,6 +102,30 @@ public class SectionParser {
             }
         }
     }
+
+    @Scheduled(initialDelay = 1200, fixedDelay = ONE_WEEK_MS)
+    @Transactional
+    public void getAdditionalItemInfo() throws InterruptedException {
+        LOG.info("Получаем дополнитульную информацию о товарe...");
+        ExecutorService executorService = Executors.newFixedThreadPool(threadPoolSize);
+        int page = 0;
+        List<Category> categories;
+        // 1. offset + limit
+        // 2. page + pageSize
+        //   offset = page * pageSize;  limit = pageSize;
+        while (!(categories = categoryRepository.getChunk(PageRequest.of(page++, chunkSize))).isEmpty()) {
+            LOG.info("Получили из базы {} категорий", categories.size());
+            CountDownLatch latch = new CountDownLatch(categories.size());
+            for (Category category : categories) {
+                executorService.execute(new ItemsUpdateTask(itemRepository, category, latch));
+            }
+            LOG.info("Задачи запущены, ожидаем завершения выполнения...");
+            latch.await();
+            LOG.info("Задачи выполнены, следующая порция...");
+        }
+        executorService.shutdown();
+    }
 }
+
 
 

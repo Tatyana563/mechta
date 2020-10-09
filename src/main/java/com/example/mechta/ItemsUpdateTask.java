@@ -1,7 +1,6 @@
 package com.example.mechta;
 
 
-
 import com.example.mechta.model.Category;
 import com.example.mechta.model.Item;
 import com.example.mechta.repository.ItemRepository;
@@ -25,12 +24,11 @@ public class ItemsUpdateTask implements Runnable {
     private final Category category;
     private final CountDownLatch latch;
 
-
-    private static final String PAGE_URL_CONSTANT = "?sort=views&page=%d";
-    private static final Integer numberOfProductsPerPage = 18;
-    private static final Pattern PATTERN = Pattern.compile("Артикул:\\s*(\\S*)");
+    private static final String URL = "https://www.mechta.kz";
+    private static final String PAGE_URL_CONSTANT = "?PAGEN_2=%d&sort=popular&adesc=asc";
     private static final Pattern PRICE_PATTERN = Pattern.compile("(\\d*\\s*\\d*\\s*\\d*\\s*\\d*\\s*\\d*\\s*\\d*)");
-    private static final Pattern QUANTITY_PATTERN = Pattern.compile("(\\D*)(\\s*)(\\D*)(\\d*)");
+    private static final Pattern IMAGE_PATTERN = Pattern.compile("(background-image: url\\()(.*)(\\))");
+    private static final Pattern CODE_PATTERN = Pattern.compile("(\\d+)");
 
     public ItemsUpdateTask(ItemRepository itemRepository, Category category, CountDownLatch latch) {
         this.itemRepository = itemRepository;
@@ -64,62 +62,46 @@ public class ItemsUpdateTask implements Runnable {
     }
 
     private int getTotalPages(Document firstPage) {
-        //TODO: complete implementation
-        Elements itemElements = firstPage.select(".catalog-container");
-        Integer numberofPages = null;
-        for (Element itemElement : itemElements) {
-            String quantity = itemElement.select(".product-quantity").text();
-            Integer amountOfProducts;
-
-
-            Matcher matcher = QUANTITY_PATTERN.matcher(quantity);
-            if (matcher.find()) {
-                amountOfProducts = Integer.valueOf(matcher.group(4));
-
-                int main = amountOfProducts / numberOfProductsPerPage;
-                if (main != 0) {
-                    int tail = amountOfProducts % 18;
-                    if ((amountOfProducts % numberOfProductsPerPage != 0)) {
-                        numberofPages = main + 1;
-                    } else {
-                        numberofPages = main;
-                    }
-                } else {
-                    numberofPages = 1;
-                }
-            }
-
+        Element lastPage = firstPage.selectFirst(".modern-page-navigation>a:nth-last-of-type(2)");
+        if (lastPage != null) {
+            String text = lastPage.text();
+            return Integer.parseInt(text);
         }
-        return numberofPages;
+        return 0;
     }
 
 
     private void parseItems(Document itemPage) {
-
-        Elements itemElements = itemPage.select(".aa_vert_cont jq_aa_vert_rec swiper-container swiper-container-horizontal");
+        Elements itemElements = itemPage.select(".aa_section_catalog");
         for (Element itemElement : itemElements) {
-            Element itemContainer = itemElement.selectFirst(".aa_st_descr iprel");
-
-            String itemUrl = itemElement.selectFirst(".aa_vert_name").attr("href");
-            String itemText = itemElement.selectFirst(".aa_vert_name").text();
-            String itemPrice = itemElement.selectFirst(".ifont120 icblack").text();
-
-
+            String code = null;
             String price = null;
+            String itemUrl = itemElement.selectFirst(".ifont14.j_product_link").absUrl("href");
+            String itemText = itemElement.selectFirst(".aa_std_name").text();
+            String itemCode = itemElement.selectFirst(".element-table-article.only-desktop").text();
+            String itemPrice = itemElement.selectFirst(".aa_std_bigprice.icblack").text();
+
+            Matcher matcher = CODE_PATTERN.matcher(itemCode);
+            if (matcher.find()) {
+                code = matcher.group(0);
+            }
             Matcher priceMatcher = PRICE_PATTERN.matcher(itemPrice);
             if (priceMatcher.find()) {
-                price = priceMatcher.group(1).replaceAll("\\s*", "");
+                price = priceMatcher.group(0).replaceAll("\\s*", "");
             }
-            String itemDescription = itemElement.selectFirst(".list-unstyled").text();
-            Matcher matcher = PATTERN.matcher(itemDescription);
-            if (matcher.find()) {
-                String itemCode = matcher.group(1);
+            String test = itemElement.selectFirst(".aa_st_imglink.j_product_link").attr("style");
+
+            Matcher imageMatcher = IMAGE_PATTERN.matcher(test);
+            if (imageMatcher.find()) {
+
+                String image = imageMatcher.group(2).replace("'", "");
+
+                String imageURL = URL + image;
 
                 Item item = itemRepository.findOneByCode(itemCode).orElseGet(() -> new Item(itemCode));
 
                 item.setModel(itemText);
-            //    item.setImage(itemPhoto);
-                item.setDescription(itemDescription);
+                item.setImage(imageURL);
                 item.setPrice(Double.valueOf(price));
                 item.setUrl(itemUrl);
                 item.setAvailable(true);
@@ -129,6 +111,7 @@ public class ItemsUpdateTask implements Runnable {
         }
     }
 }
+
 
 
 
